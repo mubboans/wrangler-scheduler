@@ -9,5 +9,9 @@
 	},
 	"devDependencies": {
 		"wrangler": "^4.58.0"
+	},
+	"dependencies": {
+		"firebase-admin": "^13.6.0",
+		"mongodb": "^7.0.0"
 	}
 }
