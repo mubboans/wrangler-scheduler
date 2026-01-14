@@ -1,26 +1,44 @@
-import admin from "firebase-admin";
-import { MongoClient } from "mongodb";
+import { runCron } from "./cron/prayer.cron";
+import PrayTime from "./prayertime";
 
 export default {
-	// async fetch(req) {
-	// 	const url = new URL(req.url)
-	// 	url.pathname = "/__scheduled";
-	// 	url.searchParams.append("cron", "* * * * *");
-	// 	return new Response(`To test the scheduled handler, ensure you have used the "--test-scheduled" then try running "curl ${url.href}".`);
-	// },
+	async fetch(req, env, ctx) {
+		const prayer_time = getPrayerTimes(new Date());
+		console.log('Prayer times for today:', prayer_time);
 
-	// The scheduled handler is invoked at the interval set in our wrangler.jsonc's
-	// [[triggers]] configuration.
+		// Allow manual triggering of cron via HTTP for testing
+		const url = new URL(req.url);
+		const isManualTrigger = url.searchParams.get('run_cron') === 'true' || url.pathname === '/run_cron';
+
+		if (isManualTrigger) {
+			console.log('🔄 Manually triggering cron via HTTP');
+			ctx.waitUntil(runCron());
+			return new Response('Cron triggered in background', { status: 200 });
+		}
+
+		return new Response(JSON.stringify(prayer_time, null, 2), {
+			headers: { 'content-type': 'application/json' },
+		});
+	},
+
 	async scheduled(event, env, ctx) {
-		// A Cron Trigger can make requests to other endpoints on the Internet,
-		// publish to a Queue, query a D1 Database, and much more.
-		//
-		// We'll keep it simple and make an API call to a Cloudflare API:
-
-		// You could store this result in KV, write to a D1 Database, or publish to a Queue.
-		// In this template, we'll just log the result:
-		console.log(`trigger fired at ${event.cron}: ${wasSuccessful}`);
-		console.log('server started');
-
+		console.log(`⏰ Scheduled event triggered at ${event.cron}`);
+		ctx.waitUntil(runCron());
 	},
 };
+
+const PRESET = {
+	lat: 19.076,
+	lng: 72.8777,
+	tz: 'Asia/Kolkata',
+	method: 'MWL',
+};
+
+function getPrayerTimes(date) {
+	const calc = new PrayTime(PRESET.method);
+	calc.location([PRESET.lat, PRESET.lng]);
+	calc.timezone(PRESET.tz);
+	calc.format('24h');
+
+	return calc.getTimes(date);
+}
